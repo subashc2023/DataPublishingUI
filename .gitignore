@@ -1,0 +1,8 @@
+node_modules
+dist
+*.local
+.claude/settings.local.json
+
+# Splunk exports hold internal data: keep them in exports/ (or anywhere outside the repo), never commit them.
+exports/
+flow-events-sample.csv

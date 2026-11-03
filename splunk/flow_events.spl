@@ -1,0 +1,23 @@
+``` Produces the flow-event contract Data Publishing Flows reads (see README, "Feeding it from Splunk"). ```
+``` Replace every <placeholder> with your platform's index, sourcetype and field names, then run over ```
+``` the period you want and Export -> CSV (or JSON) with "Unlimited" results. ```
+index=<pipeline_index> sourcetype=<pipeline_sourcetype> earliest=-60d@d latest=now
+``` One event per pipeline hop: a job/task run that wrote data into a layer. ```
+| rename <env_field> AS env, <lob_field> AS lob, <dataset_field> AS dataset,
+         <source_layer_field> AS from_layer, <target_layer_field> AS to_layer,
+         <bytes_written_field> AS bytes, <rows_written_field> AS records
+``` Normalise to the UI's values. Assumes ingestion events carry no source layer; adjust if yours name the upstream system. ```
+| eval env=lower(env),
+       env=case(match(env, "^(dev|development|sbx)$"), "dev",
+                match(env, "^(uat|qa|test|sit)$"), "uat",
+                match(env, "^(prod|prd|production)$"), "prod",
+                true(), env),
+       from_layer=lower(coalesce(from_layer, "source")),
+       to_layer=lower(to_layer),
+       status=if(match(lower(<status_field>), "^(success|succeeded|completed|complete|ok)$"), "success", "failed")
+``` Pre-aggregating keeps the export small; the UI reads the runs column as the number of runs folded into each row. ```
+| bin _time span=1h
+| stats count AS runs, sum(bytes) AS bytes, sum(records) AS records BY _time env lob dataset from_layer to_layer status
+``` Epoch seconds avoid any timezone ambiguity in the export. ```
+| eval time=_time
+| table time env lob dataset from_layer to_layer status runs bytes records
